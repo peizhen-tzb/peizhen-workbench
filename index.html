@@ -1,0 +1,1102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>陪诊课题工作台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a sticky header holding the title, the countdown to the standard's start date and the tab bar; each tab is one working view below it. */
+:root {
+  --bg: #f4f7f7; --panel: #ffffff; --ink: #16272b; --muted: #5a6b70; --line: #d8e2e3;
+  --accent: #1c6a72; --accent-weak: #e1eff0; --on-accent: #ffffff;
+  --st-done: #2f7a45; --st-doing: #2c5fb3; --st-pending: #a8701a; --st-todo: #98a6aa; --bad: #b8382c;
+  --shadow: 0 8px 28px rgba(18, 40, 44, .16);
+  --f-display: "Noto Serif SC", "Songti SC", "SimSun", serif;
+  --f-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 8px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1618; --panel: #152023; --ink: #e2eced; --muted: #91a3a7; --line: #283739;
+  --accent: #5db1b9; --accent-weak: #19312f; --on-accent: #0b1517;
+  --st-done: #67bf7c; --st-doing: #7ea6ee; --st-pending: #e0a94c; --st-todo: #5c6c70; --bad: #ee6c5f;
+  --shadow: 0 8px 28px rgba(0, 0, 0, .5); color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e1618; --panel: #152023; --ink: #e2eced; --muted: #91a3a7; --line: #283739;
+  --accent: #5db1b9; --accent-weak: #19312f; --on-accent: #0b1517;
+  --st-done: #67bf7c; --st-doing: #7ea6ee; --st-pending: #e0a94c; --st-todo: #5c6c70; --bad: #ee6c5f;
+  --shadow: 0 8px 28px rgba(0, 0, 0, .5); color-scheme: dark; }
+
+html { color-scheme: light; }
+[hidden] { display: none !important; }
+img { max-width: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.6; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--panel); }
+* { box-sizing: border-box; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 1180px; margin-inline: auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line); }
+.top-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; padding-block: 14px 6px; }
+.brand { margin: 0; font-family: var(--f-display); font-weight: 600; font-size: 22px; letter-spacing: .02em; text-wrap: balance; }
+.brand small { font-family: var(--f-body); font-weight: 400; font-size: 13px; color: var(--muted); margin-left: 10px; letter-spacing: 0; }
+.countdown { font-size: 13px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+.countdown b { font-family: var(--f-mono); font-weight: 500; color: var(--ink); font-size: 15px; }
+.tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.tab { border: 0; background: none; padding: 8px 12px 10px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 500; }
+.tab .cnt { font-family: var(--f-mono); font-size: 11px; color: var(--muted); margin-left: 4px; }
+
+main { padding-block: 20px 48px; display: block; }
+.view { display: flex; flex-direction: column; gap: 16px; }
+.banner { padding: 10px 14px; border-radius: var(--r); background: var(--accent-weak); color: var(--ink); font-size: 13px; }
+.banner.warn { border-left: 3px solid var(--st-pending); }
+
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.card h2 { margin: 0; font-size: 15px; font-weight: 500; }
+.note { margin: 0; color: var(--muted); font-size: 12px; }
+
+.tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr)); }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tile-k { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.tile-v { font-family: var(--f-mono); font-size: 28px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tile-v small { font-size: 14px; color: var(--muted); }
+.meter { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 6px; }
+.meter > i { display: block; height: 100%; background: var(--st-done); border-radius: 3px; width: 0; transition: width .4s ease; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+.s-已完成 { background: var(--st-done); } .s-进行中 { background: var(--st-doing); } .s-待确认 { background: var(--st-pending); } .s-未开始 { background: var(--st-todo); }
+
+.phase { display: flex; flex-direction: column; gap: 4px; }
+.phase-row { display: flex; justify-content: space-between; gap: 8px; }
+.phase-row span:last-child { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.stack { display: flex; gap: 2px; height: 10px; border-radius: 5px; overflow: hidden; background: var(--line); }
+.stack > i { display: block; height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+
+.gantt { position: relative; min-height: 120px; overflow: hidden; }
+.gantt svg { display: block; }
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); padding: 6px 10px; font-size: 12px; max-width: 16rem; z-index: 2; }
+.tip .k { color: var(--muted); }
+
+.feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.feed li { display: grid; grid-template-columns: 3.2rem 1fr; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); min-width: 0; }
+.feed li:first-child { border-top: 0; }
+.feed .tag { font-size: 11px; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; text-align: center; height: fit-content; padding: 0 4px; }
+.feed a, .linkish { color: var(--ink); text-decoration: none; cursor: pointer; background: none; border: 0; padding: 0; text-align: left; }
+.feed a:hover, .linkish:hover { color: var(--accent); text-decoration: underline; }
+.meta { font-size: 12px; color: var(--muted); }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.toolbar .grow { flex: 1 1 auto; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 6px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.danger { color: var(--bad); }
+.btn.danger.armed { background: var(--bad); border-color: var(--bad); color: var(--on-accent); }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+.chip { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; }
+.chip[aria-pressed="true"] { color: var(--ink); border-color: var(--accent); background: var(--accent-weak); }
+.search { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 6px 10px; min-width: 0; width: 14rem; max-width: 100%; }
+
+.tablebox { overflow: auto; max-height: 70vh; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); }
+table { width: 100%; border-collapse: collapse; }
+th { position: sticky; top: 0; background: var(--panel); text-align: left; font-weight: 500; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); white-space: nowrap; padding: 0; z-index: 1; }
+th button { border: 0; background: none; padding: 8px 10px; width: 100%; text-align: left; cursor: pointer; color: inherit; }
+td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.code, td.date { font-family: var(--f-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+td.late .date-v { color: var(--bad); }
+td.late::after { content: " 逾期"; color: var(--bad); font-family: var(--f-body); font-size: 11px; }
+td.note-c { color: var(--muted); font-size: 12px; min-width: 12rem; }
+td.title-c { min-width: 10rem; }
+.st-select { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 1px 8px; font-size: 12px; }
+.row-btn { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+.row-btn:hover { color: var(--accent); background: var(--accent-weak); }
+@media (max-width: 680px) { .hide-sm { display: none; } }
+
+.docs-list { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); }
+.doc { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.doc-top { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.kind { font-size: 11px; font-family: var(--f-mono); padding: 0 6px; border-radius: 4px; background: var(--accent-weak); color: var(--accent); }
+.doc h3 { margin: 0; font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.doc p { margin: 0; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; white-space: pre-wrap; }
+.doc .actions { display: flex; gap: 6px; margin-top: auto; padding-top: 4px; }
+
+.split { display: grid; gap: 16px; grid-template-columns: minmax(0, 18rem) minmax(0, 1fr); align-items: start; }
+@media (max-width: 760px) { .split { grid-template-columns: minmax(0, 1fr); } }
+.list { list-style: none; margin: 0; padding: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.list li button { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; border: 0; border-top: 1px solid var(--line); background: none; padding: 10px 14px; cursor: pointer; }
+.list li:first-child button { border-top: 0; }
+.list li button[aria-current="true"] { background: var(--accent-weak); box-shadow: inset 3px 0 0 var(--accent); }
+.list .t { font-weight: 500; }
+.empty { padding: 28px 16px; text-align: center; color: var(--muted); font-size: 13px; }
+
+.prose { max-width: 72ch; overflow-wrap: anywhere; }
+.prose h1, .prose h2, .prose h3 { font-family: var(--f-display); font-weight: 600; margin: 1.2em 0 .4em; line-height: 1.35; }
+.prose h1 { font-size: 20px; } .prose h2 { font-size: 17px; } .prose h3 { font-size: 15px; }
+.prose > :first-child { margin-top: 0; }
+.prose p, .prose ul, .prose ol, .prose blockquote { margin: .5em 0; }
+.prose ul, .prose ol { padding-left: 1.4em; }
+.prose blockquote { border-left: 3px solid var(--accent); padding: 2px 12px; color: var(--muted); background: var(--accent-weak); border-radius: 0 6px 6px 0; }
+.prose hr { border: 0; border-top: 1px solid var(--line); margin: 1.2em 0; }
+.prose code { font-family: var(--f-mono); font-size: 12px; background: var(--accent-weak); padding: 0 4px; border-radius: 3px; }
+.prose .tbl { overflow-x: auto; margin: .6em 0; }
+.prose table { border: 1px solid var(--line); font-size: 13px; }
+.prose th { position: static; padding: 6px 10px; color: var(--ink); background: var(--accent-weak); }
+.prose td { padding: 6px 10px; }
+
+.thread-head { display: flex; flex-direction: column; gap: 4px; }
+.transcript { border-top: 1px solid var(--line); padding-top: 12px; }
+.transcript > summary { cursor: pointer; font-weight: 500; color: var(--accent); }
+.transcript[open] > summary { margin-bottom: 8px; }
+.thread-head h2 { font-size: 17px; font-family: var(--f-display); font-weight: 600; }
+.msgs { display: flex; flex-direction: column; gap: 10px; }
+.msg { border-left: 2px solid var(--line); padding: 2px 0 2px 12px; }
+.msg .body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.composer { display: flex; flex-direction: column; gap: 8px; }
+textarea, .field input, .field select { width: 100%; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 7px 10px; }
+textarea { resize: vertical; min-height: 5rem; }
+
+.overlay { position: fixed; inset: 0; background: rgba(10, 20, 22, .45); z-index: 20; display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: max(24px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); }
+.sheet { background: var(--panel); border-radius: 10px; box-shadow: var(--shadow); width: min(100%, 40rem); padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.sheet h2 { margin: 0; font-family: var(--f-display); font-weight: 600; font-size: 18px; }
+.fields { display: grid; gap: 10px 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.field.wide { grid-column: 1 / -1; }
+.field .hint { font-size: 11px; }
+.sheet-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.sheet-actions .left { margin-right: auto; }
+.err { color: var(--bad); font-size: 12px; margin: 0; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(20px, env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 6px; font-size: 13px; z-index: 30; max-width: calc(100% - 32px); }
+@media (prefers-reduced-motion: reduce) { .meter > i { transition: none; } }
+.who { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.who .btn { padding: 2px 8px; font-size: 12px; }
+.setup p { margin: 0; color: var(--muted); font-size: 13px; }
+.setup ol { margin: 0; padding-left: 1.3em; color: var(--muted); font-size: 13px; }
+.setup a { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="top-row">
+      <h1 class="brand">陪诊课题工作台<small>中国陪诊服务基本概况与服务信息错配研究</small></h1>
+      <div class="countdown" id="countdown"></div>
+      <div class="who" id="who"></div>
+    </div>
+    <nav class="tabs" role="tablist" id="tabs">
+      <button class="tab" role="tab" data-tab="overview">总览</button>
+      <button class="tab" role="tab" data-tab="tasks">任务<span class="cnt" id="cnt-tasks"></span></button>
+      <button class="tab" role="tab" data-tab="docs">资料<span class="cnt" id="cnt-docs"></span></button>
+      <button class="tab" role="tab" data-tab="meetings">会议纪要<span class="cnt" id="cnt-meetings"></span></button>
+      <button class="tab" role="tab" data-tab="talk">讨论<span class="cnt" id="cnt-talk"></span></button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="banner"></div>
+
+  <section class="view" id="v-overview" data-view="overview">
+    <p class="note" id="ov-lede">正在连接数据库，任务和资料会在这里显示。</p>
+    <div class="tiles">
+      <div class="tile"><div class="tile-k">总体完成率</div><div class="tile-v"><span id="ov-rate">—</span><small>%</small></div><div class="meter"><i id="ov-meter"></i></div></div>
+      <div class="tile"><div class="tile-k"><i class="dot s-已完成"></i>已完成</div><div class="tile-v" id="ov-done">—</div></div>
+      <div class="tile"><div class="tile-k"><i class="dot s-进行中"></i>进行中</div><div class="tile-v" id="ov-doing">—</div></div>
+      <div class="tile"><div class="tile-k"><i class="dot s-待确认"></i>待确认</div><div class="tile-v" id="ov-pending">—</div></div>
+      <div class="tile"><div class="tile-k"><i class="dot s-未开始"></i>未开始</div><div class="tile-v" id="ov-todo">—</div></div>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <div class="card-head"><h2>各阶段进度</h2><span class="note">已完成 / 总数</span></div>
+        <div id="ov-phases"></div>
+        <div class="legend"><span><i class="dot s-已完成"></i>已完成</span><span><i class="dot s-进行中"></i>进行中</span><span><i class="dot s-待确认"></i>待确认</span><span><i class="dot s-未开始"></i>未开始</span></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>接下来要交</h2><span class="note">未完成任务中截止最早的五项</span></div>
+        <ul class="feed" id="ov-next"></ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>时间线</h2><span class="note">任务从开始到截止；竖线是今天和关键日期</span></div>
+      <div class="gantt" id="ov-gantt"></div>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <div class="card-head"><h2>最近动态</h2><span class="note">新资料、纪要和讨论</span></div>
+        <ul class="feed" id="ov-feed"></ul>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>关键日期</h2><button class="btn" id="ms-add" data-write>添加日期</button></div>
+        <ul class="feed" id="ov-ms"></ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="v-tasks" data-view="tasks" hidden>
+    <div class="toolbar">
+      <div id="t-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      <span class="grow"></span>
+      <input class="search" id="t-search" type="search" placeholder="搜索任务、负责人、备注" aria-label="搜索任务">
+      <button class="btn primary" id="t-add" data-write>新建任务</button>
+    </div>
+    <div class="tablebox">
+      <table id="t-table">
+        <thead><tr>
+          <th><button data-k="code">编号</button></th>
+          <th class="hide-sm"><button data-k="phase">阶段</button></th>
+          <th><button data-k="title">任务</button></th>
+          <th class="hide-sm"><button data-k="owner">负责人</button></th>
+          <th><button data-k="status">状态</button></th>
+          <th><button data-k="due">截止</button></th>
+          <th class="hide-sm"><button data-k="note">备注</button></th>
+          <th></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" id="t-empty" hidden>还没有任务。点“新建任务”加第一项。</div>
+    </div>
+  </section>
+
+  <section class="view" id="v-docs" data-view="docs" hidden>
+    <div class="toolbar">
+      <div id="d-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      <span class="grow"></span>
+      <input class="search" id="d-search" type="search" placeholder="搜索资料" aria-label="搜索资料">
+      <button class="btn primary" id="d-upload" data-write hidden>上传文件</button>
+      <button class="btn" id="d-link" data-write>添加链接</button>
+      <button class="btn" id="d-note" data-write>写笔记</button>
+    </div>
+    <p class="note" id="d-hint">可上传 PDF、图片、CSV、Markdown、TXT、JSON，单个文件 20 MB 以内。Word、Excel、PPT 请先另存为 PDF，或放在网盘里用“添加链接”。</p>
+    <div class="docs-list" id="d-list"></div>
+    <div class="empty" id="d-empty" hidden>还没有资料。上传文件、添加链接或写一条笔记。</div>
+  </section>
+
+  <section class="view" id="v-meetings" data-view="meetings" hidden>
+    <div class="toolbar"><span class="grow"></span><button class="btn primary" id="m-add" data-write>新建纪要</button></div>
+    <div class="split">
+      <ul class="list" id="m-list"></ul>
+      <article class="card" id="m-detail"><div class="empty">选一份纪要查看。</div></article>
+    </div>
+  </section>
+
+  <section class="view" id="v-talk" data-view="talk" hidden>
+    <div class="toolbar"><span class="grow"></span><button class="btn primary" id="th-add" data-write>发起讨论</button></div>
+    <div class="split">
+      <ul class="list" id="th-list"></ul>
+      <article class="card" id="th-detail"><div class="empty">选一个话题查看，或发起新的讨论。</div></article>
+    </div>
+  </section>
+</main>
+<div id="overlay-root"></div>
+
+<script src="config.js"></script>
+<script>
+(() => {
+'use strict';
+const STATUSES = ['未开始', '进行中', '待确认', '已完成'];
+const BAR_ORDER = ['已完成', '进行中', '待确认', '未开始'];
+const PHASES = ['立项与对齐', '市场概况与数据', '信息错配', '因果识别', '成果撰写'];
+const DOC_CATS = ['政策与标准', '数据', '文献', '行业报告', '研究方案', '其他'];
+const TABS = ['overview', 'tasks', 'docs', 'meetings', 'talk'];
+
+const S = { tasks: [], docs: [], meetings: [], threads: [], milestones: [], members: [], loaded: {}, ready: false, offline: false, readOnly: false, me: null, headSha: null, syncedAt: null,
+  tab: 'overview', tFilter: '全部', tSort: 'code', tDir: 1, dFilter: '全部', mSel: null, thSel: null };
+const COLS = ['tasks', 'docs', 'meetings', 'threads', 'milestones', 'members'];
+const MAX_FILE = 25 * 1024 * 1024;
+
+const $ = (s, r = document) => r.querySelector(s);
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : String(v));
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) el.append(c instanceof Node ? c : String(c));
+  return el;
+}
+const pad2 = (n) => String(n).padStart(2, '0');
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+const parseDay = (s) => { if (!s) return null; const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d); };
+const dayDiff = (a, b) => Math.round((parseDay(a) - parseDay(b)) / 864e5);
+const shortDate = (s) => s ? `${Number(s.slice(5, 7))}/${Number(s.slice(8, 10))}` : '';
+const fmtTime = (iso) => { if (!iso) return ''; const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+const fmtSize = (b) => b == null ? '' : b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(0) + ' KB' : (b / 1048576).toFixed(1) + ' MB';
+
+let toastTimer;
+function toast(msg) {
+  document.querySelectorAll('.toast').forEach((t) => t.remove());
+  const t = h('div', { class: 'toast', role: 'status', text: msg }); document.body.append(t);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.remove(), 3200);
+}
+
+// ---------- people ----------
+function nameOf(login, label) {
+  if (!login) return label || '';
+  const m = S.members.find((x) => x.login === login);
+  return (m && m.name) || login;
+}
+const byLine = (o) => nameOf(o.createdBy, o.byLabel);
+
+// ---------- GitHub storage ----------
+const CONFIG = window.WORKBENCH_CONFIG || {};
+const LS = { get: (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} } };
+function defaultRepo() {
+  if (CONFIG.dataRepo) return CONFIG.dataRepo;
+  const m = location.hostname.match(/^([^.]+)\.github\.io$/i);
+  return m ? `${m[1]}/peizhen-data` : '';
+}
+function guideUrl() {
+  if (CONFIG.guideUrl) return CONFIG.guideUrl;
+  const m = location.hostname.match(/^([^.]+)\.github\.io$/i);
+  const repo = location.pathname.split('/').filter(Boolean)[0];
+  return m && repo ? `https://github.com/${m[1]}/${repo}/blob/main/组员设置指南.md` : '';
+}
+const R = { token: LS.get('pz.token'), repo: LS.get('pz.repo') || defaultRepo(), branch: CONFIG.branch || 'main' };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const b64enc = (str) => { const u = new TextEncoder().encode(str); let bin = ''; for (let i = 0; i < u.length; i += 0x8000) bin += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(bin); };
+const b64dec = (b) => { const bin = atob(String(b).replace(/\s/g, '')); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new TextDecoder().decode(u); };
+const encPath = (path) => path.split('/').map(encodeURIComponent).join('/');
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+async function gh(path, opts = {}) {
+  let r;
+  try {
+    r = await fetch('https://api.github.com' + path, { cache: 'no-store', ...opts,
+      headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', Authorization: `Bearer ${R.token}`, ...(opts.headers || {}) } });
+  } catch (e) { throw { code: 'network' }; }
+  if (r.status === 401) throw { code: 'auth' };
+  return r;
+}
+const repoPath = (rest) => `/repos/${R.repo}${rest}`;
+
+async function readCol(name) {
+  const r = await gh(repoPath(`/contents/data/${name}.json?ref=${R.branch}&_=${Date.now()}`));
+  if (r.status === 404) return { items: [], sha: null };
+  if (r.status === 403) throw { code: 'forbidden' };
+  if (!r.ok) throw { code: 'http', status: r.status };
+  const j = await r.json();
+  let text = '';
+  if (j.content && j.encoding === 'base64') text = b64dec(j.content);
+  else { const b = await gh(repoPath(`/git/blobs/${j.sha}`)); text = b64dec((await b.json()).content); }
+  let obj = {};
+  try { obj = JSON.parse(text || '{}'); } catch (e) { throw { code: 'corrupt', name }; }
+  return { items: Array.isArray(obj.items) ? obj.items : [], sha: j.sha };
+}
+
+// Read-modify-write one collection file; on a concurrent change GitHub refuses the stale sha, so re-read and re-apply the same change.
+async function mutate(name, fn, message) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { items, sha } = await readCol(name);
+    const next = fn(items.map((x) => ({ ...x })));
+    if (next === false) return true;
+    const body = { message: `${S.me ? S.me.login : '工作台'}：${message}`, content: b64enc(JSON.stringify({ items: next }, null, 1) + '\n'), branch: R.branch };
+    if (sha) body.sha = sha;
+    const r = await gh(repoPath(`/contents/data/${name}.json`), { method: 'PUT', body: JSON.stringify(body) });
+    if (r.ok) { S[name] = next; S.loaded[name] = true; try { S.headSha = (await r.json()).commit.sha; } catch (e) {} render(); return true; }
+    if (r.status === 403 || r.status === 404) throw { code: 'forbidden' };
+    if (r.status !== 409 && r.status !== 422) throw { code: 'http', status: r.status };
+    await sleep(300 + Math.random() * 700);
+  }
+  throw { code: 'conflict' };
+}
+const label = (o) => o.code || o.title || o.name || '';
+const addItem = (col, data, what) => { const id = newId(); return mutate(col, (items) => [...items, { id, ...data }], `新增${what}「${label(data)}」`).then(() => id); };
+const updateItem = (col, id, patch, what) => mutate(col, (items) => { const i = items.findIndex((x) => x.id === id); if (i < 0) throw { code: 'gone' }; items[i] = { ...items[i], ...patch }; return items; }, `修改${what}「${label({ ...(S[col].find((x) => x.id === id) || {}), ...patch })}」`);
+const deleteItem = (col, id, what) => mutate(col, (items) => items.filter((x) => x.id !== id), `删除${what}「${label(S[col].find((x) => x.id === id) || {})}」`);
+
+async function putFile(file) {
+  const dataUrl = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => rej({ code: 'read' }); fr.readAsDataURL(file); });
+  const content = String(dataUrl).split(',')[1] || '';
+  const d = new Date();
+  const safe = file.name.replace(/[\\/:*?"<>|#%]+/g, '_');
+  let path = `files/${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}-${safe}`;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const r = await gh(repoPath(`/contents/${encPath(path)}`), { method: 'PUT', body: JSON.stringify({ message: `${S.me.login}：上传文件 ${file.name}`, content, branch: R.branch }) });
+    if (r.ok) return path;
+    if (r.status === 422) { path = path.replace(/(\.[^./]+)?$/, `-${Math.random().toString(36).slice(2, 6)}$1`); continue; }
+    if (r.status === 403 || r.status === 404) throw { code: 'forbidden' };
+    throw { code: 'http', status: r.status };
+  }
+  throw { code: 'http' };
+}
+async function removeFile(path, name) {
+  const r = await gh(repoPath(`/contents/${encPath(path)}?ref=${R.branch}&_=${Date.now()}`));
+  if (r.status === 404) return;
+  if (!r.ok) throw { code: 'http', status: r.status };
+  const { sha } = await r.json();
+  const d = await gh(repoPath(`/contents/${encPath(path)}`), { method: 'DELETE', body: JSON.stringify({ message: `${S.me.login}：删除文件 ${name}`, sha, branch: R.branch }) });
+  if (!d.ok && d.status !== 404) throw { code: 'http', status: d.status };
+}
+async function openFile(d) {
+  const inline = /^(application\/pdf|image\/|text\/|video\/)/.test(d.contentType || '');
+  const w = inline ? window.open('', '_blank') : null;
+  if (w) w.document.title = '正在打开…';
+  try {
+    const r = await gh(repoPath(`/contents/${encPath(d.path)}?ref=${R.branch}`), { headers: { Accept: 'application/vnd.github.raw' } });
+    if (!r.ok) throw { code: r.status === 404 ? 'gone' : 'http' };
+    const blob = new Blob([await r.blob()], { type: d.contentType || 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    if (w) w.location.href = url;
+    else { const a = h('a', { href: url, download: d.fileName || 'file' }); document.body.append(a); a.click(); a.remove(); }
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+  } catch (e) { if (w) w.close(); toast(e && e.code === 'gone' ? '这个文件在仓库里找不到了。' : '文件没有打开，请稍后再试。'); }
+}
+const MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', mp4: 'video/mp4', csv: 'text/csv', md: 'text/markdown', txt: 'text/plain', json: 'application/json',
+  doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', zip: 'application/zip' };
+
+// ---------- writes ----------
+function canWrite() { return S.ready && !S.readOnly && !S.offline; }
+async function guard(p, okMsg) {
+  try { await p; if (okMsg) toast(okMsg); return true; }
+  catch (e) {
+    const code = e && e.code;
+    if (code === 'auth') { toast('令牌失效了，请重新填写。'); showSetup('令牌无效或已过期。'); }
+    else if (code === 'forbidden') { S.readOnly = true; applyWriteState(); toast('你的令牌没有写入权限，改动没有保存。'); }
+    else if (code === 'network') toast('连不上 GitHub，检查一下网络再试。');
+    else if (code === 'conflict') toast('有人同时在改，保存没成功，请刷新后再试。');
+    else if (code === 'gone') toast('这条记录已经被别人删掉了。');
+    else toast('没有保存成功，请稍后再试。');
+    return false;
+  }
+}
+const stamp = (extra) => Object.assign({ updatedAt: new Date().toISOString(), updatedBy: S.me ? S.me.login : null }, extra);
+const created = () => ({ createdAt: new Date().toISOString(), createdBy: S.me ? S.me.login : null });
+
+function applyWriteState() {
+  document.querySelectorAll('[data-write]').forEach((b) => { b.disabled = !canWrite(); });
+  $('#d-upload').hidden = !canWrite();
+  const ban = $('#banner'); ban.replaceChildren();
+  if (S.offline) ban.append(h('div', { class: 'banner warn', text: '连不上 GitHub，显示的是上次加载的内容。网络恢复后点右上角“刷新”。' }));
+  else if (S.readOnly) ban.append(h('div', { class: 'banner warn', text: '你的令牌只能读取，不能保存修改。重新生成令牌时把 Contents 权限设为“Read and write”。' }));
+  $('#d-hint').textContent = '任何格式都能上传（Word、Excel、PPT、PDF、图片……），单个文件 25 MB 以内。文件存在数据仓库的 files 文件夹里。';
+  const who = $('#who'); who.replaceChildren();
+  if (S.me) who.append(h('span', { text: S.me.name || S.me.login }), S.syncedAt ? h('span', { class: 'mono', text: `· 同步于 ${pad2(S.syncedAt.getHours())}:${pad2(S.syncedAt.getMinutes())}` }) : null,
+    h('button', { class: 'btn', text: '刷新', onclick: () => loadAll(true) }), h('button', { class: 'btn', text: '退出', onclick: () => { LS.set('pz.token', null); location.reload(); } }));
+}
+
+// ---------- overlay form ----------
+function openForm({ title, fields, submit = '保存', onSubmit, onDelete, deleteLabel = '删除' }) {
+  const root = $('#overlay-root');
+  const err = h('p', { class: 'err', hidden: true });
+  const inputs = {};
+  const fieldEls = fields.map((f) => {
+    let input;
+    const id = 'f-' + f.name;
+    if (f.type === 'select') input = h('select', { id, name: f.name }, f.options.map((o) => h('option', { value: o, selected: o === f.value, text: o })));
+    else if (f.type === 'textarea') { input = h('textarea', { id, name: f.name, rows: f.rows || 6, placeholder: f.placeholder || '' }); input.value = f.value || ''; }
+    else if (f.type === 'file') input = h('input', { id, name: f.name, type: 'file', multiple: true });
+    else { input = h('input', { id, name: f.name, type: f.type || 'text', placeholder: f.placeholder || '' }); input.value = f.value || ''; }
+    inputs[f.name] = input;
+    return h('label', { class: 'field' + (f.wide ? ' wide' : ''), for: id }, f.label + (f.required ? ' *' : ''), input, f.hint ? h('span', { class: 'hint', text: f.hint }) : null);
+  });
+  const close = () => { root.replaceChildren(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  const saveBtn = h('button', { class: 'btn primary', type: 'submit', text: submit });
+  let delBtn = null;
+  if (onDelete) {
+    delBtn = h('button', { class: 'btn danger left', type: 'button', text: deleteLabel });
+    delBtn.addEventListener('click', async () => {
+      if (!delBtn.classList.contains('armed')) { delBtn.classList.add('armed'); delBtn.textContent = '再点一次确认删除'; return; }
+      delBtn.disabled = true; if (await onDelete()) close(); else delBtn.disabled = false;
+    });
+  }
+  const form = h('form', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+    h('h2', { text: title }), h('div', { class: 'fields' }, fieldEls), err,
+    h('div', { class: 'sheet-actions' }, delBtn, h('button', { class: 'btn', type: 'button', text: '取消', onclick: close }), saveBtn));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const vals = {};
+    for (const f of fields) {
+      const el = inputs[f.name];
+      vals[f.name] = f.type === 'file' ? [...el.files] : el.value.trim();
+      if (f.required && (f.type === 'file' ? !vals[f.name].length : !vals[f.name])) { err.hidden = false; err.textContent = `请填写“${f.label}”。`; el.focus(); return; }
+    }
+    saveBtn.disabled = true; saveBtn.textContent = '保存中…';
+    const ok = await onSubmit(vals, (m) => { err.hidden = false; err.textContent = m; });
+    if (ok) close(); else { saveBtn.disabled = false; saveBtn.textContent = submit; }
+  });
+  const ov = h('div', { class: 'overlay' }, form);
+  ov.addEventListener('mousedown', (e) => { if (e.target === ov) close(); });
+  root.replaceChildren(ov);
+  const first = form.querySelector('input, select, textarea'); if (first) first.focus();
+}
+
+// ---------- tabs ----------
+function setTab(t, push = true) {
+  if (!TABS.includes(t)) t = 'overview';
+  S.tab = t;
+  document.querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
+  document.querySelectorAll('[data-view]').forEach((v) => { v.hidden = v.dataset.view !== t; });
+  if (push) { try { history.replaceState(null, '', '#' + t); } catch (e) {} }
+  render();
+}
+document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+
+// ---------- header ----------
+function renderCountdown() {
+  const el = $('#countdown'); el.replaceChildren();
+  const today = todayStr();
+  const ms = S.milestones.filter((m) => m.date).sort((a, b) => a.date < b.date ? -1 : 1);
+  const next = ms.filter((m) => m.date >= today).slice(0, 2);
+  const past = ms.filter((m) => m.date < today).slice(-1);
+  for (const m of next) { const d = dayDiff(m.date, today); el.append(h('span', null, `距${m.name} `, h('b', { text: String(d) }), ' 天')); }
+  if (!next.length) for (const m of past) el.append(h('span', null, `${m.name}已过 `, h('b', { text: String(dayDiff(today, m.date)) }), ' 天'));
+  $('#cnt-tasks').textContent = S.tasks.length || '';
+  $('#cnt-docs').textContent = S.docs.length || '';
+  $('#cnt-meetings').textContent = S.meetings.length || '';
+  $('#cnt-talk').textContent = S.threads.length || '';
+}
+
+// ---------- overview ----------
+function counts(list) { const c = { total: list.length }; STATUSES.forEach((s) => { c[s] = list.filter((t) => t.status === s).length; }); return c; }
+function phasesOf(tasks) { const extra = [...new Set(tasks.map((t) => t.phase).filter((p) => p && !PHASES.includes(p)))]; return [...PHASES, ...extra].filter((p) => tasks.some((t) => t.phase === p)); }
+function nextDue(tasks) { return tasks.filter((t) => t.status !== '已完成' && t.due).sort((a, b) => a.due < b.due ? -1 : a.due > b.due ? 1 : (a.code || '') < (b.code || '') ? -1 : 1).slice(0, 5); }
+
+function renderOverview() {
+  const c = counts(S.tasks);
+  const rate = c.total ? Math.round(c['已完成'] / c.total * 100) : 0;
+  $('#ov-rate').textContent = S.loaded.tasks ? rate : '—';
+  $('#ov-meter').style.width = rate + '%';
+  $('#ov-done').textContent = S.loaded.tasks ? c['已完成'] : '—';
+  $('#ov-doing').textContent = S.loaded.tasks ? c['进行中'] : '—';
+  $('#ov-pending').textContent = S.loaded.tasks ? c['待确认'] : '—';
+  $('#ov-todo').textContent = S.loaded.tasks ? c['未开始'] : '—';
+  const nd = nextDue(S.tasks);
+  const lede = $('#ov-lede');
+  if (S.loaded.tasks) {
+    const late = S.tasks.filter((t) => t.status !== '已完成' && t.due && t.due < todayStr()).length;
+    lede.textContent = c.total ? `共 ${c.total} 项任务，已完成 ${c['已完成']} 项${late ? `，${late} 项已逾期` : ''}。` + (nd[0] ? `最近要交的是「${nd[0].title}」，${shortDate(nd[0].due)} 截止。` : '') : '还没有任务，去“任务”页添加第一项。';
+  }
+
+  const ph = $('#ov-phases'); ph.replaceChildren();
+  phasesOf(S.tasks).forEach((p) => {
+    const list = S.tasks.filter((t) => t.phase === p), pc = counts(list);
+    ph.append(h('div', { class: 'phase', style: 'margin-bottom:10px' },
+      h('div', { class: 'phase-row' }, h('span', { text: p }), h('span', { text: `${pc['已完成']} / ${pc.total}` })),
+      h('div', { class: 'stack' }, BAR_ORDER.filter((s) => pc[s]).map((s) => h('i', { class: 's-' + s, style: `width:${pc[s] / pc.total * 100}%;${s === '未开始' ? 'opacity:.55' : ''}`, title: `${s} ${pc[s]}` })))));
+  });
+  if (!ph.children.length) ph.append(h('div', { class: 'empty', text: '暂无任务' }));
+
+  const nx = $('#ov-next'); nx.replaceChildren();
+  const today = todayStr();
+  nd.forEach((t) => nx.append(h('li', null, h('span', { class: 'mono meta', text: shortDate(t.due) }),
+    h('div', null, h('button', { class: 'linkish', text: `${t.code || ''} ${t.title}`, onclick: () => editTask(t) }),
+      h('div', { class: 'meta' }, h('i', { class: 'dot s-' + t.status, style: 'margin-right:4px' }), t.status, ' · ', t.owner || '待定', t.due < today ? h('span', { style: 'color:var(--bad)', text: ' · 逾期' }) : null)))));
+  if (!nd.length) nx.append(h('li', { class: 'empty', style: 'display:block', text: S.loaded.tasks ? '没有待交任务' : '加载中…' }));
+
+  const feed = $('#ov-feed'); feed.replaceChildren();
+  const items = [
+    ...S.docs.map((d) => ({ at: d.createdAt, tag: '资料', title: d.title, by: byLine(d), go: () => setTab('docs') })),
+    ...S.meetings.map((m) => ({ at: m.createdAt, tag: '纪要', title: m.title, by: byLine(m), go: () => { S.mSel = m.id; setTab('meetings'); } })),
+    ...S.threads.map((t) => ({ at: t.lastAt || t.createdAt, tag: '讨论', title: t.title, by: byLine(t), go: () => { selectThread(t.id); setTab('talk'); } })),
+  ].filter((x) => x.at).sort((a, b) => a.at < b.at ? 1 : -1).slice(0, 6);
+  items.forEach((x) => feed.append(h('li', null, h('span', { class: 'tag', text: x.tag }), h('div', null, h('button', { class: 'linkish', text: x.title, onclick: x.go }), h('div', { class: 'meta', text: `${x.by} · ${fmtTime(x.at)}` })))));
+  if (!items.length) feed.append(h('li', { class: 'empty', style: 'display:block', text: '还没有动态' }));
+
+  const ms = $('#ov-ms'); ms.replaceChildren();
+  S.milestones.slice().sort((a, b) => a.date < b.date ? -1 : 1).forEach((m) => {
+    const d = dayDiff(m.date, today);
+    ms.append(h('li', null, h('span', { class: 'mono meta', text: shortDate(m.date) }),
+      h('div', null, h('button', { class: 'linkish', text: m.name, onclick: () => editMilestone(m) }), h('div', { class: 'meta', text: d > 0 ? `还有 ${d} 天` : d === 0 ? '就是今天' : `已过 ${-d} 天` }))));
+  });
+  if (!S.milestones.length) ms.append(h('li', { class: 'empty', style: 'display:block', text: '添加挑战杯校赛、省赛等截止日期' }));
+  drawGantt();
+}
+
+const tip = h('div', { class: 'tip', hidden: true });
+function drawGantt() {
+  const el = $('#ov-gantt');
+  if (S.tab !== 'overview' || !el.clientWidth) return;
+  el.replaceChildren(tip);
+  const tasks = S.tasks.filter((t) => t.start && (t.due || t.done)).map((t) => ({ t, s: parseDay(t.start), e: parseDay(t.due || t.done) }));
+  if (!tasks.length) { el.append(h('div', { class: 'empty', text: S.loaded.tasks ? '任务填上开始和截止日期后会出现在时间线上。' : '加载中…' })); return; }
+  const today = parseDay(todayStr());
+  const refs = [{ d: today, name: '今天', color: 'var(--ink)' }, ...S.milestones.filter((m) => m.date).map((m) => ({ d: parseDay(m.date), name: m.name, color: 'var(--bad)' }))];
+  const lo = Math.min(...tasks.map((x) => x.s), ...refs.map((r) => r.d)) - 2 * 864e5;
+  const hi = Math.max(...tasks.map((x) => x.e), ...refs.map((r) => r.d)) + 3 * 864e5;
+  const W = el.clientWidth, top = 34, rowH = 30, phaseH = 28;
+  const groups = phasesOf(tasks.map((x) => x.t)).map((p) => [p, tasks.filter((x) => x.t.phase === p).sort((a, b) => a.s - b.s)]);
+  const H = top + groups.reduce((a, [, l]) => a + phaseH + l.length * rowH, 0) + 6;
+  const X = (d) => (d - lo) / (hi - lo) * (W - 4);
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('width', '100%'); svg.setAttribute('height', H); svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const add = (tag, attrs, text) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (text != null) n.textContent = text; svg.append(n); return n; };
+  // weekly ticks on Mondays
+  const stepDays = W < 520 ? 14 : 7;
+  let t0 = new Date(lo); t0.setUTCDate(t0.getUTCDate() + ((8 - t0.getUTCDay()) % 7));
+  for (let d = +t0; d <= hi; d += stepDays * 864e5) {
+    const x = X(d);
+    add('line', { x1: x, x2: x, y1: top - 6, y2: H, style: 'stroke:var(--line)', 'stroke-width': 1 });
+    const dt = new Date(d);
+    add('text', { x, y: 12, 'text-anchor': 'middle', style: 'fill:var(--muted);font-size:11px;font-family:var(--f-mono)' }, `${dt.getUTCMonth() + 1}/${dt.getUTCDate()}`);
+  }
+  let y = top; const tStr = todayStr();
+  for (const [p, list] of groups) {
+    add('text', { x: 0, y: y + 19, style: 'fill:var(--ink);font-size:13px;font-weight:500' }, p);
+    y += phaseH;
+    for (const x of list) {
+      const t = x.t, late = t.status !== '已完成' && t.due && t.due < tStr;
+      const x0 = X(x.s), x1 = Math.max(X(x.e + 864e5), x0 + 8);
+      const lbl = add('text', { y: y + 11, style: `fill:${late ? 'var(--bad)' : 'var(--muted)'};font-size:12px` }, `${t.code || ''} ${t.title}${late ? '（逾期）' : ''}`);
+      const len = lbl.getComputedTextLength();
+      lbl.setAttribute('x', Math.max(0, Math.min(x0, W - len)));
+      add('rect', { x: x0, y: y + 16, width: x1 - x0, height: 9, rx: 4, class: 's-' + t.status, style: `fill:var(--st-${{ '已完成': 'done', '进行中': 'doing', '待确认': 'pending' }[t.status] || 'todo'});${late ? 'stroke:var(--bad);stroke-width:1.5' : ''}` });
+      const hit = add('rect', { x: 0, y, width: W, height: rowH, style: 'fill:transparent;cursor:pointer' });
+      hit.addEventListener('mousemove', (ev) => {
+        tip.replaceChildren(h('div', { class: 'k', text: `${t.code || ''} · ${t.phase}` }), h('div', { text: t.title }), h('div', { text: `${t.status} · ${shortDate(t.start)} – ${shortDate(t.due || t.done)} · ${t.owner || '待定'}` }), t.note ? h('div', { class: 'k', text: t.note }) : null);
+        tip.hidden = false;
+        const r = el.getBoundingClientRect();
+        tip.style.left = Math.max(0, Math.min(ev.clientX - r.left + 12, el.clientWidth - tip.offsetWidth)) + 'px';
+        tip.style.top = (ev.clientY - r.top + 14) + 'px';
+      });
+      hit.addEventListener('mouseleave', () => { tip.hidden = true; });
+      hit.addEventListener('click', () => editTask(t));
+      y += rowH;
+    }
+  }
+  refs.sort((a, b) => a.d - b.d);
+  let lastRight = -Infinity;
+  for (const r of refs) {
+    const px = X(r.d + 432e5);
+    add('line', { x1: px, x2: px, y1: top - 8, y2: H, style: `stroke:${r.color}`, 'stroke-width': 1, 'stroke-dasharray': '3 3' });
+    const tx = add('text', { y: 27, style: `fill:${r.color};font-size:11px` }, r.name);
+    const w = tx.getComputedTextLength();
+    let x = Math.max(0, Math.min(px + 4, W - w));
+    if (x < lastRight + 6) x = Math.min(lastRight + 6, W - w);
+    tx.setAttribute('x', x); lastRight = x + w;
+  }
+  el.append(svg);
+}
+let gw = 0;
+new ResizeObserver(() => { const w = $('#ov-gantt').clientWidth; if (w && w !== gw) { gw = w; drawGantt(); } }).observe($('#ov-gantt'));
+
+function editMilestone(m) {
+  if (!canWrite()) return;
+  openForm({ title: m ? '编辑关键日期' : '添加关键日期', fields: [
+    { name: 'name', label: '名称', value: m?.name, required: true, placeholder: '例如：挑战杯校赛提交' },
+    { name: 'date', label: '日期', type: 'date', value: m?.date, required: true }],
+    onSubmit: (v) => m ? guard(updateItem('milestones', m.id, stamp(v), '关键日期'), '已保存') : guard(addItem('milestones', stamp({ ...v, ...created() }), '关键日期'), '已添加'),
+    onDelete: m ? () => guard(deleteItem('milestones', m.id, '关键日期'), '已删除') : null });
+}
+$('#ms-add').addEventListener('click', () => editMilestone(null));
+
+// ---------- tasks ----------
+const tChips = $('#t-chips');
+['全部', ...STATUSES].forEach((s) => tChips.append(h('button', { class: 'chip', 'aria-pressed': String(s === '全部'), 'data-s': s, onclick: () => { S.tFilter = s; tChips.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.s === s))); renderTasks(); } }, s !== '全部' ? h('i', { class: 'dot s-' + s }) : null, s)));
+$('#t-search').addEventListener('input', () => renderTasks());
+document.querySelectorAll('#t-table th button').forEach((b) => b.addEventListener('click', () => { const k = b.dataset.k; S.tDir = S.tSort === k ? -S.tDir : 1; S.tSort = k; renderTasks(); }));
+$('#t-add').addEventListener('click', () => editTask(null));
+
+function nextCode() { const n = Math.max(0, ...S.tasks.map((t) => parseInt(String(t.code || '').replace(/\D/g, ''), 10) || 0)); return 'T' + pad2(n + 1); }
+
+function editTask(t) {
+  if (!canWrite()) { if (t) toast(`${t.code} ${t.title}：${t.status}`); return; }
+  openForm({ title: t ? `编辑 ${t.code || '任务'}` : '新建任务', fields: [
+    { name: 'title', label: '任务', value: t?.title, required: true, wide: true },
+    { name: 'phase', label: '阶段', type: 'select', options: PHASES, value: t?.phase || PHASES[1] },
+    { name: 'status', label: '状态', type: 'select', options: STATUSES, value: t?.status || '未开始' },
+    { name: 'owner', label: '负责人', value: t?.owner || '', placeholder: '名字，多人用顿号分隔' },
+    { name: 'start', label: '开始', type: 'date', value: t?.start },
+    { name: 'due', label: '截止', type: 'date', value: t?.due },
+    { name: 'note', label: '备注', type: 'textarea', rows: 3, value: t?.note, wide: true }],
+    onSubmit: async (v, fail) => {
+      if (v.start && v.due && v.due < v.start) { fail('截止日期早于开始日期。'); return false; }
+      const body = { ...v, done: v.status === '已完成' ? (t?.done || todayStr()) : '' };
+      if (t) return guard(updateItem('tasks', t.id, stamp(body), '任务'), '已保存');
+      return guard(addItem('tasks', stamp({ ...body, code: nextCode(), ...created() }), '任务'), '已添加');
+    },
+    onDelete: t ? () => guard(deleteItem('tasks', t.id, '任务'), '已删除') : null });
+}
+
+function renderTasks() {
+  const q = $('#t-search').value.trim();
+  const tb = $('#t-table tbody'); tb.replaceChildren();
+  document.querySelectorAll('#t-table th').forEach((th) => { const b = th.querySelector('button'); th.setAttribute('aria-sort', b && b.dataset.k === S.tSort ? (S.tDir > 0 ? 'ascending' : 'descending') : 'none'); });
+  const key = (t) => S.tSort === 'status' ? STATUSES.indexOf(t.status) : S.tSort === 'phase' ? PHASES.indexOf(t.phase) : (t[S.tSort] || '￿');
+  const rows = S.tasks.filter((t) => S.tFilter === '全部' || t.status === S.tFilter)
+    .filter((t) => !q || [t.code, t.title, t.owner, t.note, t.phase].join(' ').includes(q))
+    .sort((a, b) => { const A = key(a), B = key(b); return (A < B ? -1 : A > B ? 1 : 0) * S.tDir; });
+  const today = todayStr();
+  for (const t of rows) {
+    const sel = h('select', { class: 'st-select', 'aria-label': '状态', disabled: !canWrite() }, STATUSES.map((s) => h('option', { value: s, selected: s === t.status, text: s })));
+    sel.addEventListener('change', async () => { sel.disabled = true; await guard(updateItem('tasks', t.id, stamp({ status: sel.value, done: sel.value === '已完成' ? today : '' }), '任务'), `已改为“${sel.value}”`); sel.disabled = !canWrite(); });
+    const late = t.status !== '已完成' && t.due && t.due < today;
+    tb.append(h('tr', null,
+      h('td', { class: 'code', text: t.code || '' }),
+      h('td', { class: 'hide-sm meta', text: t.phase || '' }),
+      h('td', { class: 'title-c', text: t.title || '' }),
+      h('td', { class: 'hide-sm', text: t.owner || '待定' }),
+      h('td', null, h('span', { style: 'display:inline-flex;align-items:center;gap:6px' }, h('i', { class: 'dot s-' + t.status }), sel)),
+      h('td', { class: 'date' + (late ? ' late' : '') }, h('span', { class: 'date-v', text: t.due || '' })),
+      h('td', { class: 'hide-sm note-c', text: t.note || '' }),
+      h('td', null, h('button', { class: 'row-btn', text: '编辑', 'aria-label': `编辑 ${t.code}`, onclick: () => editTask(t), disabled: !canWrite() }))));
+  }
+  $('#t-empty').hidden = rows.length > 0 || !S.loaded.tasks;
+  if (S.loaded.tasks && !rows.length && S.tasks.length) { $('#t-empty').hidden = false; $('#t-empty').textContent = '没有符合筛选条件的任务。'; }
+  else $('#t-empty').textContent = '还没有任务。点“新建任务”加第一项。';
+}
+
+// ---------- docs ----------
+const dChips = $('#d-chips');
+['全部', ...DOC_CATS].forEach((s) => dChips.append(h('button', { class: 'chip', 'aria-pressed': String(s === '全部'), 'data-s': s, text: s, onclick: () => { S.dFilter = s; dChips.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.s === s))); renderDocs(); } })));
+$('#d-search').addEventListener('input', () => renderDocs());
+const curCat = () => S.dFilter === '全部' ? '其他' : S.dFilter;
+
+$('#d-upload').addEventListener('click', () => openForm({ title: '上传文件', submit: '上传', fields: [
+  { name: 'files', label: '文件', type: 'file', required: true, wide: true, hint: '任何格式，单个 25 MB 以内' },
+  { name: 'category', label: '分类', type: 'select', options: DOC_CATS, value: curCat() },
+  { name: 'note', label: '说明', type: 'textarea', rows: 2, wide: true, placeholder: '这份资料是什么、从哪来' }],
+  onSubmit: async (v, fail) => {
+    let okCount = 0;
+    for (const f of v.files) {
+      if (f.size > MAX_FILE) { fail(`“${f.name}”超过 25 MB。大文件请放网盘，用“添加链接”登记。`); return okCount > 0; }
+      try {
+        const path = await putFile(f);
+        const ext = (f.name.split('.').pop() || '').toLowerCase();
+        const ok = await guard(addItem('docs', { kind: '文件', title: f.name.replace(/\.[^.]+$/, ''), fileName: f.name, path, size: f.size, contentType: f.type || MIME[ext] || '', category: v.category, note: v.note, ...created() }, '资料'));
+        if (ok) okCount++;
+      } catch (e) {
+        fail(`“${f.name}”上传失败${e && e.code === 'forbidden' ? '：令牌没有写入权限' : e && e.code === 'network' ? '：连不上 GitHub' : ''}。`); return okCount > 0;
+      }
+    }
+    toast(`已上传 ${okCount} 个文件`); return true;
+  } }));
+
+function editDoc(d, kind) {
+  kind = d?.kind || kind;
+  const fields = [{ name: 'title', label: '标题', value: d?.title, required: true, wide: true }];
+  if (kind === '链接') fields.push({ name: 'url', label: '链接', type: 'url', value: d?.url, required: true, wide: true, placeholder: 'https://' });
+  fields.push({ name: 'category', label: '分类', type: 'select', options: DOC_CATS, value: d?.category || curCat() });
+  fields.push(kind === '笔记' ? { name: 'note', label: '内容', type: 'textarea', rows: 10, value: d?.note, wide: true, hint: '支持简单 Markdown：# 标题、- 列表、**加粗**、表格' } : { name: 'note', label: '说明', type: 'textarea', rows: 3, value: d?.note, wide: true });
+  openForm({ title: d ? '编辑资料' : kind === '链接' ? '添加链接' : '写笔记', fields,
+    onSubmit: async (v, fail) => {
+      if (v.url && !/^https?:\/\//i.test(v.url)) { fail('链接要以 http:// 或 https:// 开头。'); return false; }
+      if (d) return guard(updateItem('docs', d.id, stamp(v), '资料'), '已保存');
+      return guard(addItem('docs', stamp({ ...v, kind, ...created() }), '资料'), '已添加');
+    },
+    onDelete: d ? async () => {
+      if (d.path) { try { await removeFile(d.path, d.fileName || d.title); } catch (e) { return guard(Promise.reject(e)); } }
+      return guard(deleteItem('docs', d.id, '资料'), '已删除');
+    } : null });
+}
+$('#d-link').addEventListener('click', () => editDoc(null, '链接'));
+$('#d-note').addEventListener('click', () => editDoc(null, '笔记'));
+
+function viewNote(d) {
+  const root = $('#overlay-root');
+  const close = () => root.replaceChildren();
+  const ov = h('div', { class: 'overlay', onmousedown: (e) => { if (e.target === ov) close(); } },
+    h('div', { class: 'sheet', role: 'dialog', 'aria-label': d.title },
+      h('h2', { text: d.title }), h('div', { class: 'meta', text: `${d.category || ''} · ${byLine(d)} · ${fmtTime(d.createdAt)}` }),
+      h('div', { class: 'prose' }, md(d.note || '')),
+      h('div', { class: 'sheet-actions' }, canWrite() ? h('button', { class: 'btn', text: '编辑', onclick: () => editDoc(d) }) : null, h('button', { class: 'btn primary', text: '关闭', onclick: close }))));
+  root.replaceChildren(ov);
+}
+
+function renderDocs() {
+  const q = $('#d-search').value.trim();
+  const list = $('#d-list'); list.replaceChildren();
+  const rows = S.docs.filter((d) => S.dFilter === '全部' || d.category === S.dFilter)
+    .filter((d) => !q || [d.title, d.note, d.fileName, d.url, d.category].join(' ').includes(q))
+    .sort((a, b) => (a.createdAt || '') < (b.createdAt || '') ? 1 : -1);
+  for (const d of rows) {
+    const open = d.kind === '文件' ? h('button', { class: 'btn', text: /^(application\/pdf|image\/|text\/|video\/)/.test(d.contentType || '') ? '打开' : '下载', onclick: () => openFile(d) })
+      : d.kind === '链接' ? h('a', { class: 'btn', href: d.url, target: '_blank', rel: 'noopener noreferrer', text: '打开链接' })
+      : h('button', { class: 'btn', text: '阅读', onclick: () => viewNote(d) });
+    const sub = d.kind === '文件' ? `${d.fileName || ''} · ${fmtSize(d.size)}` : d.kind === '链接' ? (() => { try { return new URL(d.url).hostname; } catch (e) { return d.url; } })() : '';
+    const notePreview = d.kind === '笔记' ? (d.note || '').replace(/[#*>|`-]/g, '').slice(0, 120) + ((d.note || '').length > 120 ? '…' : '') : d.note;
+    list.append(h('div', { class: 'doc' },
+      h('div', { class: 'doc-top' }, h('span', { class: 'kind', text: d.kind }), h('span', { class: 'meta', text: d.category || '' })),
+      h('h3', { text: d.title }),
+      sub ? h('div', { class: 'meta mono', style: 'overflow-wrap:anywhere', text: sub }) : null,
+      notePreview ? h('p', { text: notePreview }) : null,
+      h('div', { class: 'meta', text: `${byLine(d)} · ${fmtTime(d.createdAt)}` }),
+      h('div', { class: 'actions' }, open, canWrite() ? h('button', { class: 'btn', text: '编辑', onclick: () => editDoc(d) }) : null)));
+  }
+  $('#d-empty').hidden = rows.length > 0 || !S.loaded.docs;
+  $('#d-empty').textContent = S.docs.length ? '没有符合条件的资料。' : '还没有资料。上传文件、添加链接或写一条笔记。';
+}
+
+// ---------- markdown (small, safe: builds nodes, never innerHTML) ----------
+function inline(text) {
+  const frag = document.createDocumentFragment();
+  const re = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)\s]+\))/g;
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    if (m.index > last) frag.append(text.slice(last, m.index));
+    const tok = m[0];
+    if (tok.startsWith('**')) frag.append(h('strong', { text: tok.slice(2, -2) }));
+    else if (tok.startsWith('`')) frag.append(h('code', { text: tok.slice(1, -1) }));
+    else { const mm = tok.match(/^\[([^\]]+)\]\(([^)\s]+)\)$/); const href = mm[2]; frag.append(/^https?:\/\//i.test(href) ? h('a', { href, target: '_blank', rel: 'noopener noreferrer', text: mm[1] }) : mm[1]); }
+    last = m.index + tok.length;
+  }
+  if (last < text.length) frag.append(text.slice(last));
+  return frag;
+}
+function md(src) {
+  const out = document.createDocumentFragment();
+  const lines = String(src).replace(/\r/g, '').split('\n');
+  let i = 0;
+  while (i < lines.length) {
+    const l = lines[i];
+    if (!l.trim()) { i++; continue; }
+    let m;
+    if ((m = l.match(/^(#{1,3})\s+(.*)$/))) { out.append(h('h' + m[1].length, null, inline(m[2]))); i++; continue; }
+    if (/^\s*(---|\*\*\*)\s*$/.test(l)) { out.append(h('hr')); i++; continue; }
+    if (/^\s*\|/.test(l)) {
+      const rows = [];
+      while (i < lines.length && /^\s*\|/.test(lines[i])) { rows.push(lines[i]); i++; }
+      const cells = (r) => r.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+      const body = rows.filter((r) => !/^\s*\|?[\s:|-]+\|?\s*$/.test(r));
+      const [head, ...rest] = body;
+      const tbl = h('table', null, h('thead', null, h('tr', null, cells(head).map((c) => h('th', null, inline(c))))), h('tbody', null, rest.map((r) => h('tr', null, cells(r).map((c) => h('td', null, inline(c)))))));
+      out.append(h('div', { class: 'tbl' }, tbl)); continue;
+    }
+    if (/^\s*>/.test(l)) {
+      const q = [];
+      while (i < lines.length && /^\s*>/.test(lines[i])) { q.push(lines[i].replace(/^\s*>\s?/, '')); i++; }
+      out.append(h('blockquote', null, md(q.join('\n')))); continue;
+    }
+    if (/^\s*([-*]|\d+\.)\s+/.test(l)) {
+      const ordered = /^\s*\d+\./.test(l);
+      const list = h(ordered ? 'ol' : 'ul');
+      let cur = null;
+      while (i < lines.length && (/^\s*([-*]|\d+\.)\s+/.test(lines[i]) || (/^\s{2,}\S/.test(lines[i]) && cur))) {
+        const ln = lines[i];
+        const top = /^([-*]|\d+\.)\s+/.test(ln);
+        const text = ln.replace(/^\s*([-*]|\d+\.)\s+/, '');
+        if (top || !cur) { cur = h('li', null, inline(text)); list.append(cur); }
+        else { let sub = cur.querySelector(':scope > ul'); if (!sub) { sub = h('ul'); cur.append(sub); } sub.append(h('li', null, inline(text))); }
+        i++;
+      }
+      out.append(list); continue;
+    }
+    const para = [];
+    while (i < lines.length && lines[i].trim() && !/^(#{1,3}\s|\s*\||\s*>|\s*([-*]|\d+\.)\s+|\s*---\s*$)/.test(lines[i])) { para.push(lines[i]); i++; }
+    const p = h('p'); para.forEach((x, k) => { if (k) p.append(h('br')); p.append(inline(x)); }); out.append(p);
+  }
+  return out;
+}
+
+// ---------- meetings ----------
+$('#m-add').addEventListener('click', () => editMeeting(null));
+function editMeeting(m) {
+  openForm({ title: m ? '编辑纪要' : '新建纪要', fields: [
+    { name: 'title', label: '标题', value: m?.title, required: true, wide: true, placeholder: '例如：第二次指导会议' },
+    { name: 'date', label: '日期', type: 'date', value: m?.date || todayStr(), required: true },
+    { name: 'attendees', label: '参会', value: m?.attendees, placeholder: '例如：全组、指导老师' },
+    { name: 'body', label: '内容', type: 'textarea', rows: 16, value: m?.body, wide: true, hint: '支持简单 Markdown：## 小标题、- 列表、**加粗**、> 引用、| 表格 |' },
+    { name: 'transcript', label: '逐字稿', type: 'textarea', rows: 10, value: m?.transcript, wide: true, hint: '可选：录音转写整理稿，发言人用 **老师**：/ **成员**： 标注' }],
+    onSubmit: async (v) => {
+      if (m) return guard(updateItem('meetings', m.id, stamp(v), '纪要'), '已保存');
+      let id = null;
+      const ok = await guard(addItem('meetings', stamp({ ...v, ...created() }), '纪要').then((x) => { id = x; }), '已保存');
+      if (ok) { S.mSel = id; renderMeetings(); }
+      return ok;
+    },
+    onDelete: m ? async () => { const ok = await guard(deleteItem('meetings', m.id, '纪要'), '已删除'); if (ok) S.mSel = null; return ok; } : null });
+}
+function renderMeetings() {
+  const list = $('#m-list'); list.replaceChildren();
+  const rows = S.meetings.slice().sort((a, b) => (a.date || '') < (b.date || '') ? 1 : -1);
+  if (!S.mSel && rows[0]) S.mSel = rows[0].id;
+  for (const m of rows) list.append(h('li', null, h('button', { 'aria-current': String(m.id === S.mSel), onclick: () => { S.mSel = m.id; renderMeetings(); } },
+    h('span', { class: 't', text: m.title }), h('span', { class: 'meta mono', text: m.date || '' }))));
+  if (!rows.length) list.append(h('li', { class: 'empty', text: S.loaded.meetings ? '还没有纪要' : '加载中…' }));
+  const det = $('#m-detail'); det.replaceChildren();
+  const m = rows.find((x) => x.id === S.mSel);
+  if (!m) { det.append(h('div', { class: 'empty', text: rows.length ? '选一份纪要查看。' : '开完会后点“新建纪要”记下来。' })); return; }
+  det.append(h('div', { class: 'card-head' },
+    h('div', { class: 'thread-head' }, h('h2', { text: m.title }), h('div', { class: 'meta', text: [m.date, m.attendees && `参会：${m.attendees}`, `记录：${byLine(m)}`].filter(Boolean).join(' · ') })),
+    canWrite() ? h('button', { class: 'btn', text: '编辑', onclick: () => editMeeting(m) }) : null),
+    h('div', { class: 'prose' }, md(m.body || '')),
+    m.transcript ? h('details', { class: 'transcript' }, h('summary', { text: '逐字稿（整理版）' }), h('div', { class: 'prose' }, md(m.transcript))) : null);
+}
+
+// ---------- discussion ----------
+$('#th-add').addEventListener('click', () => openForm({ title: '发起讨论', submit: '发布', fields: [
+  { name: 'title', label: '话题', required: true, wide: true, placeholder: '例如：文化变量能不能当工具变量？' },
+  { name: 'body', label: '内容', type: 'textarea', rows: 6, wide: true }],
+  onSubmit: async (v) => {
+    const now = new Date().toISOString();
+    let id = null;
+    const ok = await guard(addItem('threads', { ...v, ...created(), lastAt: now, status: '讨论中', replies: [] }, '讨论').then((x) => { id = x; }), '已发布');
+    if (ok) selectThread(id);
+    return ok;
+  } }));
+
+function selectThread(id) {
+  if (S.thSel === id) return;
+  S.thSel = id;
+  buildThreadDetail();
+  renderTalk();
+}
+function buildThreadDetail() {
+  const det = $('#th-detail'); det.replaceChildren();
+  const t = S.threads.find((x) => x.id === S.thSel);
+  if (!t) { det.append(h('div', { class: 'empty', text: S.threads.length ? '选一个话题查看。' : '有问题想和组员商量？点“发起讨论”。' })); return; }
+  const head = h('div', { class: 'thread-head', id: 'th-head' });
+  const msgs = h('div', { class: 'msgs', id: 'th-msgs' });
+  const ta = h('textarea', { id: 'th-reply', rows: 3, placeholder: '写下你的回复', 'aria-label': '回复' });
+  const send = h('button', { class: 'btn primary', type: 'submit', text: '回复', disabled: !canWrite() });
+  const form = h('form', { class: 'composer' }, ta, h('div', { style: 'display:flex;justify-content:flex-end;gap:8px' }, send));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault(); const text = ta.value.trim(); if (!text) return;
+    send.disabled = true;
+    const now = new Date().toISOString();
+    const reply = { id: newId(), text, at: now, by: S.me.login };
+    const ok = await guard(mutate('threads', (items) => { const i = items.findIndex((x) => x.id === t.id); if (i < 0) throw { code: 'gone' }; items[i] = { ...items[i], replies: [...(items[i].replies || []), reply], lastAt: now }; return items; }, `回复讨论「${t.title}」`));
+    if (ok) ta.value = '';
+    send.disabled = !canWrite();
+  });
+  det.append(head, msgs, canWrite() ? form : null);
+  renderThreadHead(); renderReplies();
+}
+function renderThreadHead() {
+  const head = $('#th-head'); if (!head) return;
+  const t = S.threads.find((x) => x.id === S.thSel); if (!t) return;
+  const resolved = t.status === '已解决';
+  head.replaceChildren(
+    h('div', { class: 'card-head' }, h('h2', { text: t.title }),
+      canWrite() ? h('button', { class: 'btn', text: resolved ? '重新打开' : '标记已解决', onclick: () => guard(updateItem('threads', t.id, { status: resolved ? '讨论中' : '已解决' }, '讨论')) }) : null),
+    h('div', { class: 'meta', text: `${byLine(t)} · ${fmtTime(t.createdAt)} · ${t.status || '讨论中'}` }),
+    t.body ? h('div', { class: 'prose', style: 'margin-top:6px' }, md(t.body)) : null);
+}
+function renderReplies() {
+  const box = $('#th-msgs'); if (!box) return;
+  box.replaceChildren();
+  const t = S.threads.find((x) => x.id === S.thSel);
+  const replies = (t && t.replies) || [];
+  replies.forEach((r) => box.append(h('div', { class: 'msg' }, h('div', { class: 'meta', text: `${nameOf(r.by, r.byLabel)} · ${fmtTime(r.at)}` }), h('div', { class: 'body', text: r.text }))));
+  if (!replies.length) box.append(h('div', { class: 'meta', text: '还没有回复。' }));
+}
+function renderTalk() {
+  const list = $('#th-list'); list.replaceChildren();
+  const rows = S.threads.slice().sort((a, b) => (a.lastAt || a.createdAt || '') < (b.lastAt || b.createdAt || '') ? 1 : -1);
+  for (const t of rows) list.append(h('li', null, h('button', { 'aria-current': String(t.id === S.thSel), onclick: () => selectThread(t.id) },
+    h('span', { class: 't', text: t.title }), h('span', { class: 'meta', text: `${t.status || '讨论中'} · ${fmtTime(t.lastAt || t.createdAt)}` }))));
+  if (!rows.length) list.append(h('li', { class: 'empty', text: S.loaded.threads ? '还没有讨论' : '加载中…' }));
+  if (S.thSel && !S.threads.some((t) => t.id === S.thSel) && S.loaded.threads) { S.thSel = null; buildThreadDetail(); }
+  else if (!$('#th-head') && S.thSel) buildThreadDetail();
+  else { renderThreadHead(); renderReplies(); }
+}
+
+// ---------- render ----------
+function render() {
+  renderCountdown();
+  if (S.tab === 'overview') renderOverview();
+  else if (S.tab === 'tasks') renderTasks();
+  else if (S.tab === 'docs') renderDocs();
+  else if (S.tab === 'meetings') renderMeetings();
+  else if (S.tab === 'talk') renderTalk();
+}
+
+// ---------- boot ----------
+const initial = (location.hash || '').slice(1);
+setTab(TABS.includes(initial) ? initial : 'overview', false);
+applyWriteState();
+
+async function loadAll(manual) {
+  try {
+    const results = await Promise.all(COLS.map((c) => readCol(c)));
+    COLS.forEach((c, i) => { S[c] = results[i].items; S.loaded[c] = true; });
+    S.offline = false; S.syncedAt = new Date();
+    try { const r = await gh(repoPath(`/commits/${R.branch}`), { headers: { Accept: 'application/vnd.github.sha' } }); if (r.ok) S.headSha = (await r.text()).trim(); } catch (e) {}
+    if (manual) toast('已刷新');
+  } catch (e) {
+    if (e && e.code === 'auth') { showSetup('令牌无效或已过期，请重新填写。'); return; }
+    if (e && e.code === 'forbidden') { showSetup('这个令牌读不到数据仓库。检查仓库名，以及令牌是否选中了这个仓库。'); return; }
+    if (e && e.code === 'corrupt') toast(`数据文件 data/${e.name}.json 格式有误，请到 GitHub 上检查。`);
+    S.offline = true;
+  }
+  applyWriteState(); render();
+}
+// Every 30 s while the page is visible, compare the branch head; reload only when someone committed.
+setInterval(async () => {
+  if (!S.ready || document.hidden || document.querySelector('.overlay')) return;
+  try {
+    const r = await gh(repoPath(`/commits/${R.branch}`), { headers: { Accept: 'application/vnd.github.sha' } });
+    if (!r.ok) return;
+    const sha = (await r.text()).trim();
+    if (sha && sha !== S.headSha) loadAll(false);
+  } catch (e) {}
+}, 30000);
+
+function showSetup(msg) {
+  S.ready = false;
+  const root = $('#overlay-root');
+  const tokenIn = h('input', { id: 'f-token', type: 'password', autocomplete: 'off', placeholder: 'github_pat_…' });
+  const repoIn = h('input', { id: 'f-repo', type: 'text', placeholder: '组织名/peizhen-data' }); repoIn.value = R.repo || '';
+  const err = h('p', { class: 'err', hidden: !msg, text: msg || '' });
+  const btn = h('button', { class: 'btn primary', type: 'submit', text: '进入工作台' });
+  const guide = guideUrl();
+  const form = h('form', { class: 'sheet setup', role: 'dialog', 'aria-label': '登录工作台' },
+    h('h2', { text: '登录陪诊课题工作台' }),
+    h('p', { text: '工作台的数据存在课题组的 GitHub 私有仓库里。第一次使用要填一个 GitHub 令牌，浏览器会记住它。' }),
+    h('ol', null, h('li', null, '打开 ', h('a', { href: 'https://github.com/settings/personal-access-tokens/new', target: '_blank', rel: 'noopener', text: 'GitHub 新建令牌页面' })),
+      h('li', { text: 'Resource owner 选课题组织，Repository access 选 Only select repositories → 数据仓库' }),
+      h('li', { text: 'Permissions → Repository permissions → Contents 设为 Read and write，然后生成并复制' })),
+    guide ? h('p', null, '详细步骤见 ', h('a', { href: guide, target: '_blank', rel: 'noopener', text: '组员设置指南' }), '。') : null,
+    h('div', { class: 'fields' },
+      h('label', { class: 'field wide', for: 'f-repo' }, '数据仓库', repoIn),
+      h('label', { class: 'field wide', for: 'f-token' }, 'GitHub 令牌', tokenIn, h('span', { class: 'hint', text: '只保存在这台电脑的浏览器里。公用电脑用完记得点“退出”。' }))),
+    err, h('div', { class: 'sheet-actions' }, btn));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const token = tokenIn.value.trim(), repo = repoIn.value.trim().replace(/^https:\/\/github\.com\//, '').replace(/\/$/, '');
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) { err.hidden = false; err.textContent = '数据仓库要写成“组织名/仓库名”。'; return; }
+    if (!token) { err.hidden = false; err.textContent = '请粘贴令牌。'; return; }
+    btn.disabled = true; btn.textContent = '验证中…';
+    R.token = token; R.repo = repo;
+    const ok = await connect(err);
+    btn.disabled = false; btn.textContent = '进入工作台';
+    if (ok) { LS.set('pz.token', token); LS.set('pz.repo', repo); root.replaceChildren(); }
+  });
+  root.replaceChildren(h('div', { class: 'overlay' }, form));
+  tokenIn.focus();
+}
+
+async function connect(errEl) {
+  const say = (m) => { if (errEl) { errEl.hidden = false; errEl.textContent = m; } else showSetup(m); return false; };
+  try {
+    const u = await gh('/user');
+    if (!u.ok) return say('令牌无效，请重新生成。');
+    const me = await u.json();
+    const rr = await gh(repoPath(''));
+    if (rr.status === 404 || rr.status === 403) return say(`读不到仓库 ${R.repo}：检查仓库名，以及令牌是否选中了这个仓库。`);
+    const repo = await rr.json();
+    S.me = { login: me.login, name: me.name || '' };
+    S.readOnly = !!(repo.permissions && repo.permissions.push === false);
+    S.ready = true;
+    await loadAll(false);
+    if (!S.ready) return false;
+    if (!S.readOnly && !S.members.some((m) => m.login === S.me.login && (m.name || '') === S.me.name))
+      guard(mutate('members', (items) => [...items.filter((m) => m.login !== S.me.login), { login: S.me.login, name: S.me.name, joinedAt: new Date().toISOString() }], '登记成员'));
+    return true;
+  } catch (e) {
+    if (e && e.code === 'auth') return say('令牌无效或已过期，请重新生成。');
+    if (e && e.code === 'network') return say('连不上 GitHub，检查一下网络再试。');
+    return say('登录失败，请稍后再试。');
+  }
+}
+
+if (R.token && R.repo) connect(null); else showSetup('');
+})();
+</script>
+</body>
+</html>
