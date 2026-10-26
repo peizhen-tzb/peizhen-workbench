@@ -79,7 +79,8 @@ main { padding-block: 20px 48px; display: block; }
 .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted); }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
 
-.gantt { position: relative; min-height: 120px; overflow: hidden; }
+.gantt { position: relative; min-height: 120px; overflow-x: auto; overflow-y: hidden; }
+.zoom { display: inline-flex; gap: 4px; }
 .gantt svg { display: block; }
 .tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); padding: 6px 10px; font-size: 12px; max-width: 16rem; z-index: 2; }
 .tip .k { color: var(--muted); }
@@ -227,7 +228,8 @@ textarea { resize: vertical; min-height: 5rem; }
       </div>
     </div>
     <div class="card">
-      <div class="card-head"><h2>时间线</h2><span class="note">任务从开始到截止；竖线是今天和关键日期</span></div>
+      <div class="card-head"><h2>时间线</h2><div class="zoom" id="ov-zoom" role="group" aria-label="时间线缩放"><button class="chip" data-z="fit">全部</button><button class="chip" data-z="std">标准</button><button class="chip" data-z="wide">放大</button></div></div>
+      <p class="note">任务从开始到截止；竖线是今天和关键日期。放大后可以左右滑动。</p>
       <div class="gantt" id="ov-gantt"></div>
     </div>
     <div class="grid">
@@ -628,16 +630,18 @@ function drawGantt() {
   const refs = [{ d: today, name: '今天', color: 'var(--ink)' }, ...S.milestones.filter((m) => m.date).map((m) => ({ d: parseDay(m.date), name: m.name, color: 'var(--bad)' }))];
   const lo = Math.min(...tasks.map((x) => x.s), ...refs.map((r) => r.d)) - 2 * 864e5;
   const hi = Math.max(...tasks.map((x) => x.e), ...refs.map((r) => r.d)) + 3 * 864e5;
-  const W = el.clientWidth, top = 34, rowH = 30, phaseH = 28;
+  const PX = { fit: 0, std: 14, wide: 28 }[S.zoom] || 0;
+  const days = (hi - lo) / 864e5;
+  const W = Math.max(el.clientWidth, Math.round(days * PX)), top = 52, rowH = 30, phaseH = 28;
   const groups = phasesOf(tasks.map((x) => x.t)).map((p) => [p, tasks.filter((x) => x.t.phase === p).sort((a, b) => a.s - b.s)]);
   const H = top + groups.reduce((a, [, l]) => a + phaseH + l.length * rowH, 0) + 6;
   const X = (d) => (d - lo) / (hi - lo) * (W - 4);
   const NS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('width', '100%'); svg.setAttribute('height', H); svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   const add = (tag, attrs, text) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (text != null) n.textContent = text; svg.append(n); return n; };
   // weekly ticks on Mondays
-  const stepDays = W < 520 ? 14 : 7;
+  const stepDays = W / days * 7 < 46 ? 14 : 7;
   let t0 = new Date(lo); t0.setUTCDate(t0.getUTCDate() + ((8 - t0.getUTCDay()) % 7));
   for (let d = +t0; d <= hi; d += stepDays * 864e5) {
     const x = X(d);
@@ -661,7 +665,7 @@ function drawGantt() {
         tip.replaceChildren(h('div', { class: 'k', text: `${t.code || ''} · ${t.phase}` }), h('div', { text: t.title }), h('div', { text: `${t.status} · ${shortDate(t.start)} – ${shortDate(t.due || t.done)} · ${t.owner || '待定'}` }), t.note ? h('div', { class: 'k', text: t.note }) : null);
         tip.hidden = false;
         const r = el.getBoundingClientRect();
-        tip.style.left = Math.max(0, Math.min(ev.clientX - r.left + 12, el.clientWidth - tip.offsetWidth)) + 'px';
+        tip.style.left = Math.max(el.scrollLeft, Math.min(ev.clientX - r.left + el.scrollLeft + 12, el.scrollLeft + el.clientWidth - tip.offsetWidth)) + 'px';
         tip.style.top = (ev.clientY - r.top + 14) + 'px';
       });
       hit.addEventListener('mouseleave', () => { tip.hidden = true; });
@@ -670,19 +674,27 @@ function drawGantt() {
     }
   }
   refs.sort((a, b) => a.d - b.d);
-  let lastRight = -Infinity;
+  // Reference labels go in two lanes under the date ticks, so nearby dates (deadline vs. standard start) never overlap.
+  const lanes = [-Infinity, -Infinity], laneY = [28, 43];
   for (const r of refs) {
     const px = X(r.d + 432e5);
-    add('line', { x1: px, x2: px, y1: top - 8, y2: H, style: `stroke:${r.color}`, 'stroke-width': 1, 'stroke-dasharray': '3 3' });
-    const tx = add('text', { y: 27, style: `fill:${r.color};font-size:11px` }, r.name);
+    add('line', { x1: px, x2: px, y1: top - 6, y2: H, style: `stroke:${r.color}`, 'stroke-width': 1, 'stroke-dasharray': '3 3' });
+    const tx = add('text', { style: `fill:${r.color};font-size:11px` }, r.name);
     const w = tx.getComputedTextLength();
-    let x = Math.max(0, Math.min(px + 4, W - w));
-    if (x < lastRight + 6) x = Math.min(lastRight + 6, W - w);
-    tx.setAttribute('x', x); lastRight = x + w;
+    const want = Math.max(0, Math.min(px + 4, W - w));
+    let lane = lanes.findIndex((right) => want >= right + 6);
+    if (lane < 0) lane = lanes[0] <= lanes[1] ? 0 : 1;
+    const x = Math.min(Math.max(want, lanes[lane] + 6), W - w);
+    tx.setAttribute('x', x); tx.setAttribute('y', laneY[lane]); lanes[lane] = x + w;
   }
   el.append(svg);
+  if (S.ganttScroll && W > el.clientWidth) { el.scrollLeft = Math.max(0, X(today) - el.clientWidth / 3); S.ganttScroll = false; }
 }
 let gw = 0;
+S.zoom = LS.get('pz.zoom') || 'std'; S.ganttScroll = true;
+function setZoom(z) { S.zoom = z; LS.set('pz.zoom', z); S.ganttScroll = true; document.querySelectorAll('#ov-zoom .chip').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.z === z))); drawGantt(); }
+document.querySelectorAll('#ov-zoom .chip').forEach((b) => b.addEventListener('click', () => setZoom(b.dataset.z)));
+document.querySelectorAll('#ov-zoom .chip').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.z === S.zoom)));
 new ResizeObserver(() => { const w = $('#ov-gantt').clientWidth; if (w && w !== gw) { gw = w; drawGantt(); } }).observe($('#ov-gantt'));
 
 function editMilestone(m) {
